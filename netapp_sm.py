@@ -1,8 +1,5 @@
-from flask import Flask, request, jsonify
 import psycopg2
 import requests
-
-app = Flask(__name__)
 
 # Database connection configuration
 db_config = {
@@ -13,57 +10,47 @@ db_config = {
     "port": "your_port"
 }
 
-# API endpoint for refreshing the table
-@app.route('/refresh_table', methods=['POST'])
-def refresh_table():
-    try:
-        # Connect to the database
-        conn = psycopg2.connect(**db_config)
-        cursor = conn.cursor()
+# API endpoint configuration
+api_url = "https://your_api_endpoint"
 
-        # Drop the existing table
-        drop_table_query = "DROP TABLE IF EXISTS your_table_name"
-        cursor.execute(drop_table_query)
-        conn.commit()
+# Connect to the database
+conn = psycopg2.connect(**db_config)
+cursor = conn.cursor()
 
-        # Recreate the table
-        create_table_query = """
-            CREATE TABLE your_table_name (
-                column1 data_type1,
-                column2 data_type2,
-                ...
-            )
-        """
-        cursor.execute(create_table_query)
-        conn.commit()
+# Fetch data from the API endpoint
+response = requests.get(api_url)
+data = response.json()
 
-        # Fetch data from the source and insert into the table
-        data = fetch_data_from_source()  # Implement your own data fetching logic
-        insert_query = "INSERT INTO your_table_name (column1, column2, ...) VALUES (%s, %s, ...)"
-        cursor.executemany(insert_query, data)
-        conn.commit()
-
-        # Close the database connection
-        cursor.close()
-        conn.close()
-
-        return jsonify({"message": "Table refreshed successfully"})
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-# Function to fetch data from the source (Example implementation)
-def fetch_data_from_source():
-    # Implement your logic to fetch data from the source
-    # and return it as a list of tuples or a list of dictionaries.
-    # Example:
-    data = [
-        (value1, value2, ...),
-        (value1, value2, ...),
+# Create or update the table
+create_table_query = """
+    CREATE TABLE IF NOT EXISTS your_table_name (
+        column1 data_type1,
+        column2 data_type2,
         ...
-    ]
-    return data
+    )
+"""
+cursor.execute(create_table_query)
+conn.commit()
 
-# Start the Flask server
-if __name__ == '__main__':
-    app.run()   
+# Update the table with the latest API output
+for item in data:
+    # Extract data from the API response
+    column1_value = item["column1"]
+    column2_value = item["column2"]
+    # ...
+
+    # Insert or update the row in the table
+    update_query = """
+        INSERT INTO your_table_name (column1, column2, ...)
+        VALUES (%s, %s, ...)
+        ON CONFLICT (column1) DO UPDATE
+        SET column2 = EXCLUDED.column2, ...
+    """
+    values = (column1_value, column2_value, ...)
+    cursor.execute(update_query, values)
+
+conn.commit()
+
+# Close the database connection
+cursor.close()
+conn.close()
